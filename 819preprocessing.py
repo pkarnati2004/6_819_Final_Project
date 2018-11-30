@@ -3,6 +3,7 @@ from skimage.transform import resize
 import numpy as np
 import os
 
+# resizes/shapes images of category to squares of side length size
 def filter_and_adjust_images_in_category(category, size):
     all_images = os.listdir("./images/" + category)
     for name in all_images:
@@ -29,7 +30,7 @@ def filter_and_adjust_images_in_category(category, size):
         # resizes image 
         img = resize(img, (size, size, 3))
         new_image = array_to_img(img)
-        
+
         # saves image
         if not os.path.isdir("./adjusted"):
             os.mkdir("./adjusted")
@@ -39,4 +40,4 @@ def filter_and_adjust_images_in_category(category, size):
             new_image.save(f)
         print("saved to ", "./adjusted/" + category + "/" + name)
 
-print(filter_and_adjust_images_in_category("mountain", 256))
+print(filter_and_adjust_images_in_category("person", 256))

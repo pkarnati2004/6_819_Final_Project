@@ -61,12 +61,12 @@ def get_images_for_category(category, num_scrolls):
 
 # wrapper function: scrapes for each categories
 # saves images to './images/category_name/00000num.jpg'
-def scrape_images(categories):
+def scrape_images(categories, num_scrolls):
     category_to_urls = {}
     for category in categories:
-        category_to_urls[category] = get_images_for_category(category, 10)
+        category_to_urls[category] = get_images_for_category(category, num_scrolls)
         download_images(category, category_to_urls[category])
     return category_to_urls
 
 
-scrape_images(["mountain", "ocean", "island", "city"])
+scrape_images(["landscape", "animal", "person", "food"], 50)
