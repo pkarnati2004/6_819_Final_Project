@@ -25,15 +25,18 @@ def filter_and_adjust_images_in_category(category, size):
                 img = img[abs(int((img.shape[0] - img.shape[1])/2)):abs(int((img.shape[0] - img.shape[1])/2)) + img.shape[1],:,:]
             elif img.shape[0] < img.shape[1]:
                 img = img[:,abs(int((img.shape[0] - img.shape[1])/2)):abs(int((img.shape[0] - img.shape[1])/2)) + img.shape[0],:]
-            img = resize(img, (size, size, 3))
-            new_image = array_to_img(img)
-            # saves image
-            if not os.path.isdir("./adjusted"):
-                os.mkdir("./adjusted")
-            if not os.path.isdir("./adjusted/" + category):
-                os.mkdir("./adjusted/" + category)
-            with open("./adjusted/" + category + "/" + name, "w") as f:
-                new_image.save(f)
-            print("saved to ", "./adjusted/" + category + "/" + name)
+
+        # resizes image 
+        img = resize(img, (size, size, 3))
+        new_image = array_to_img(img)
+        
+        # saves image
+        if not os.path.isdir("./adjusted"):
+            os.mkdir("./adjusted")
+        if not os.path.isdir("./adjusted/" + category):
+            os.mkdir("./adjusted/" + category)
+        with open("./adjusted/" + category + "/" + name, "w") as f:
+            new_image.save(f)
+        print("saved to ", "./adjusted/" + category + "/" + name)
 
 print(filter_and_adjust_images_in_category("mountain", 256))
