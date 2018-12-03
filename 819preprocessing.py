@@ -59,4 +59,5 @@ def filter_and_adjust_images_in_category(category, size):
         print("saved to ", "./adjusted/" + category + "/" + name)
 
 # print(filter_and_adjust_images_in_category("person", 256))
-create_test_set("person")
+create_test_set("beach")
+# filter_and_adjust_images_in_category("beach", 256)

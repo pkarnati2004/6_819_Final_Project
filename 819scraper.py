@@ -68,5 +68,5 @@ def scrape_images(categories, num_scrolls):
         download_images(category, category_to_urls[category])
     return category_to_urls
 
-
-scrape_images(["landscape", "animal", "person", "food"], 50)
+# beach
+scrape_images(["bird", "city", "flower", "mountain", "dog", "fruit"], 280)

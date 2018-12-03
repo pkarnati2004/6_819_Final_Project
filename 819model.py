@@ -9,14 +9,14 @@ import os
 # loads training and validation data
 # split: proportion of all data that goes toward training
 # 1 - split: proportion of all data that goes toward validation
-def get_image_data(category, split=0.8):
+def get_image_data(category, split=0.9):
     data = []
     all_images = os.listdir("./adjusted/" + category)
     for name in all_images:
         data.append(imread("./adjusted/" + category + "/" + name))
     data = np.array(data, dtype=float)
-    training_data = data[int((1 - split) * len(data)):]
-    validation_data = data[:int((1 - split) * len(data))]
+    training_data = data[int((1 - split) * len(data)):] * 1.0/255
+    validation_data = data[:int((1 - split) * len(data))] * 1.0/255
     return (training_data, validation_data)
 
 def get_model():
@@ -43,10 +43,8 @@ def get_model():
 
 
 # data preparation and augmentation - also adds randomness
-def get_data_generator(rescale=1.0/255, zca_epsilon=0.005, shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
+def get_data_generator(shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
     return ImageDataGenerator(
-        rescale=rescale,
-        zca_epsilon=zca_epsilon,
         shear_range=shear_range,
         zoom_range=zoom_range,
         horizontal_flip=horizontal_flip,
@@ -55,25 +53,25 @@ def get_data_generator(rescale=1.0/255, zca_epsilon=0.005, shear_range=0.2, zoom
 
 def generate_next_batch(generator, training_data, batch_size):
     for batch in generator.flow(training_data, batch_size=batch_size):
-        lab = rgb2lab(batch * 1.0/255)
+        lab = rgb2lab(batch)
         l_batch = lab[:,:,:,0]
         ab_batch = lab[:,:,:,1:] / 128
         yield (l_batch.reshape(l_batch.shape[0], l_batch.shape[1], l_batch.shape[2], 1), ab_batch)
 
 
 def parse_validation_data(validation_data):
-    lab = rgb2lab(validation_data * 1.0/255)
+    lab = rgb2lab(validation_data)
     l = lab[:,:,:,0]
     ab = lab[:,:,:,1:] / 128
     return (l.reshape(l.shape[0], l.shape[1], l.shape[2], 1), ab)
 
-def model_by_category(category):
-    training_data, validation_data = get_image_data(category, 0.8)
+def model_by_category(category, batch_size=25, epochs=50, steps_per_epoch=5):
+    training_data, validation_data = get_image_data(category)
     generator = get_data_generator()
     model = get_model()
-    model.fit_generator(generate_next_batch(generator, training_data, 10), epochs=1, steps_per_epoch=1)
+    model.fit_generator(generate_next_batch(generator, training_data, batch_size), epochs, steps_per_epoch)
     test_l, test_ab = parse_validation_data(validation_data)
-    print(model.evaluate(test_l, test_ab, 10))
+    print(model.evaluate(test_l, test_ab, batch_size))
     predict_by_category(model, category)
     # print(model.to_json())
     # visualization = TensorBoard(log_dir="./model_visualization")
@@ -97,7 +95,7 @@ def predict_by_category(model, category):
         img[:,:,1:] = predicted[i]
         imsave("./testset/" + category + "/predicted/" + image_names[i], lab2rgb(img))
 
-model_by_category("person")
+model_by_category("beach")
 # predict_by_category("hi", "person")
 # generate_next_batch(get_data_generator(), get_image_data("person")[0], 10)
 # model_by_category("person")
