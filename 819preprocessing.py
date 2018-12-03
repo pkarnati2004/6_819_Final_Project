@@ -15,19 +15,19 @@ def create_test_set(category, proportion=0.10):
     os.mkdir("./testset/" + category + "/bw")
     os.mkdir("./testset/" + category + "/predicted")
     os.mkdir("./testset/" + category + "/expected")
-    all_images = os.listdir("./images/" + category)
-    for name in all_images:
+    image_names = os.listdir("./adjusted/" + category)
+    for name in image_names:
         num = random.random()
         if num < proportion:
-            img = imread("./images/" + category + "/" + name)
+            img = imread("./adjusted/" + category + "/" + name)
             imsave("./testset/" + category + "/bw/" + name, rgb2gray(img))
             imsave("./testset/" + category + "/expected/" + name, img)
 
 
 # resizes/shapes images of category to squares of side length size
 def filter_and_adjust_images_in_category(category, size):
-    all_images = os.listdir("./images/" + category)
-    for name in all_images:
+    image_names = os.listdir("./images/" + category)
+    for name in image_names:
         img = imread("./images/" + category + "/" + name)
 
         # check that images are large enough
@@ -59,4 +59,4 @@ def filter_and_adjust_images_in_category(category, size):
         print("saved to ", "./adjusted/" + category + "/" + name)
 
 # print(filter_and_adjust_images_in_category("person", 256))
-create_test_set("landscape")
+create_test_set("person")

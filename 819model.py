@@ -74,11 +74,31 @@ def model_by_category(category):
     model.fit_generator(generate_next_batch(generator, training_data, 10), epochs=1, steps_per_epoch=1)
     test_l, test_ab = parse_validation_data(validation_data)
     print(model.evaluate(test_l, test_ab, 10))
+    predict_by_category(model, category)
     # print(model.to_json())
     # visualization = TensorBoard(log_dir="./model_visualization")
 
+def predict_by_category(model, category):
+    all_images = []
+    image_names = os.listdir("./testset/" + category + "/bw")
+    for name in image_names:
+        img = imread("./testset/" + category + "/bw/" + name)
+        all_images.append(img)
+    all_images = np.array(all_images, dtype=float)
+    print(all_images.shape)
+    print(all_images.shape)
+    all_images = all_images.reshape(all_images.shape + (1,))
+    print(all_images.shape)
+    predicted = model.predict(all_images)
+    predicted = predicted * 128
+    for i in range(len(predicted)):
+        img = np.zeros((256,256,3))
+        img[:,:,0] = all_images[i][:,:,0]
+        img[:,:,1:] = predicted[i]
+        imsave("./testset/" + category + "/predicted/" + image_names[i], lab2rgb(img))
 
-# generate_next_batch(get_data_generator(), get_image_data("person")[0], 10)
 model_by_category("person")
+# predict_by_category("hi", "person")
+# generate_next_batch(get_data_generator(), get_image_data("person")[0], 10)
+# model_by_category("person")
 # print(parse_validation_data(get_image_data("person")[1]))
-
