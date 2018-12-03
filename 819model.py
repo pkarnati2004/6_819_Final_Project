@@ -62,7 +62,7 @@ def generate_next_batch(generator, training_data, batch_size):
 
 
 def parse_validation_data(validation_data):
-    lab = rgb2lab(validation_data)
+    lab = rgb2lab(validation_data * 1.0/255)
     l = lab[:,:,:,0]
     ab = lab[:,:,:,1:] / 128
     return (l.reshape(l.shape[0], l.shape[1], l.shape[2], 1), ab)
