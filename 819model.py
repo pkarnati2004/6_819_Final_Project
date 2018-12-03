@@ -1,5 +1,5 @@
 from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential, model_from_json
+from keras.models import Sequential
 from keras.layers import InputLayer, Conv2D, UpSampling2D
 from skimage.io import imread, imsave
 from skimage.color import rgb2lab, lab2rgb
@@ -15,8 +15,8 @@ def get_image_data(category, split=0.9):
     for name in all_images:
         data.append(imread("./adjusted/" + category + "/" + name))
     data = np.array(data, dtype=float)
-    training_data = data[int((1 - split) * len(data)):] * 1.0/255
-    validation_data = data[:int((1 - split) * len(data))] * 1.0/255
+    training_data = data[int((1 - split) * len(data)):]
+    validation_data = data[:int((1 - split) * len(data))]
     return (training_data, validation_data)
 
 def get_model():
@@ -43,8 +43,10 @@ def get_model():
 
 
 # data preparation and augmentation - also adds randomness
-def get_data_generator(shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
+def get_data_generator(rescale=1.0/255, zca_epsilon=0.005, shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
     return ImageDataGenerator(
+        rescale=rescale,
+        zca_epsilon=zca_epsilon,
         shear_range=shear_range,
         zoom_range=zoom_range,
         horizontal_flip=horizontal_flip,
@@ -53,41 +55,31 @@ def get_data_generator(shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dt
 
 def generate_next_batch(generator, training_data, batch_size):
     for batch in generator.flow(training_data, batch_size=batch_size):
-        lab = rgb2lab(batch)
+        lab = rgb2lab(batch * 1.0/255)
         l_batch = lab[:,:,:,0]
         ab_batch = lab[:,:,:,1:] / 128
         yield (l_batch.reshape(l_batch.shape[0], l_batch.shape[1], l_batch.shape[2], 1), ab_batch)
 
 
 def parse_validation_data(validation_data):
-    lab = rgb2lab(validation_data)
+    lab = rgb2lab(validation_data * 1.0/255)
     l = lab[:,:,:,0]
     ab = lab[:,:,:,1:] / 128
     return (l.reshape(l.shape[0], l.shape[1], l.shape[2], 1), ab)
 
-def model_by_category(category, batch_size=25, epochs=25, steps_per_epoch=2):
+def model_by_category(category, existing_weights=None, batch_size=25, epochs=25, steps_per_epoch=2):
     training_data, validation_data = get_image_data(category)
     generator = get_data_generator()
-    model = get_model()
-    model.fit_generator(generate_next_batch(generator, training_data, batch_size), epochs, steps_per_epoch)
-    model_json = model.to_json()
-    with open("model.json", "w") as json_file:
-        json_file.write(model_json)
-    model.save_weights("model.h5")
+    if existing_weights is None:
+        model = get_model()
+        model.fit_generator(generate_next_batch(generator, training_data, batch_size), epochs, steps_per_epoch)
+        model.save_weights("./model.h5")
+    else:
+        model = get_model()
+        model.load_weights(existing_weights)
     test_l, test_ab = parse_validation_data(validation_data)
-    print(model.evaluate(test_l, test_ab, batch_size))
+    print(model.evaluate(test_l, test_ab, 10))
     predict_by_category(model, category)
-    # print(model.to_json())
-    # visualization = TensorBoard(log_dir="./model_visualization")
-
-def open_existing_model(filename):
-    json_file = open(filename, "r")
-    loaded_model_json = json_file.read()
-    json_file.close()
-    loaded_model = model_from_json(loaded_model_json)
-    loaded_model.load_weights("model.h5")
-    print("loaded model from disk")
-    return loaded_model
 
 def predict_by_category(model, category):
     all_images = []
@@ -96,10 +88,7 @@ def predict_by_category(model, category):
         img = imread("./testset/" + category + "/bw/" + name)
         all_images.append(img)
     all_images = np.array(all_images, dtype=float)
-    print(all_images.shape)
-    print(all_images.shape)
     all_images = all_images.reshape(all_images.shape + (1,))
-    print(all_images.shape)
     predicted = model.predict(all_images)
     predicted = predicted * 128
     for i in range(len(predicted)):
@@ -108,8 +97,6 @@ def predict_by_category(model, category):
         img[:,:,1:] = predicted[i]
         imsave("./testset/" + category + "/predicted/" + image_names[i], lab2rgb(img))
 
-model_by_category("animal")
-# predict_by_category("hi", "person")
-# generate_next_batch(get_data_generator(), get_image_data("person")[0], 10)
-# model_by_category("person")
-# print(parse_validation_data(get_image_data("person")[1]))
+model_by_category("beach")
+# model_by_category("animal", existing_weights="./model.h5")
+
