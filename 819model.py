@@ -66,7 +66,7 @@ def parse_validation_data(validation_data):
     ab = lab[:,:,:,1:] / 128
     return (l.reshape(l.shape[0], l.shape[1], l.shape[2], 1), ab)
 
-def model_by_category(category, existing_weights=None, batch_size=25, epochs=2, steps_per_epoch=25):
+def model_by_category(category, existing_weights=None, batch_size=25, epochs=5, steps_per_epoch=25):
     training_data, validation_data = get_image_data(category)
     generator = get_data_generator()
     if existing_weights is None:
