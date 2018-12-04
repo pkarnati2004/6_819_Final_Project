@@ -2,7 +2,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import InputLayer, Conv2D, UpSampling2D
 from skimage.io import imread, imsave
-from skimage.color import rgb2lab, lab2rgb
+from skimage.color import rgb2lab, lab2rgb, gray2rgb
 import numpy as np
 import os
 
@@ -43,9 +43,8 @@ def get_model():
 
 
 # data preparation and augmentation - also adds randomness
-def get_data_generator(rescale=1.0/255, zca_epsilon=0.005, shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
+def get_data_generator(zca_epsilon=0.005, shear_range=0.2, zoom_range=0.2, horizontal_flip=True, dtype=float):
     return ImageDataGenerator(
-        rescale=rescale,
         zca_epsilon=zca_epsilon,
         shear_range=shear_range,
         zoom_range=zoom_range,
@@ -67,12 +66,12 @@ def parse_validation_data(validation_data):
     ab = lab[:,:,:,1:] / 128
     return (l.reshape(l.shape[0], l.shape[1], l.shape[2], 1), ab)
 
-def model_by_category(category, existing_weights=None, batch_size=25, epochs=25, steps_per_epoch=2):
+def model_by_category(category, existing_weights=None, batch_size=25, epochs=2, steps_per_epoch=25):
     training_data, validation_data = get_image_data(category)
     generator = get_data_generator()
     if existing_weights is None:
         model = get_model()
-        model.fit_generator(generate_next_batch(generator, training_data, batch_size), epochs, steps_per_epoch)
+        model.fit_generator(generate_next_batch(generator, training_data, batch_size), epochs=epochs, steps_per_epoch=steps_per_epoch)
         model.save_weights("./model.h5")
     else:
         model = get_model()
@@ -86,17 +85,21 @@ def predict_by_category(model, category):
     image_names = os.listdir("./testset/" + category + "/bw")
     for name in image_names:
         img = imread("./testset/" + category + "/bw/" + name)
+        img = rgb2lab(gray2rgb(img))[:,:,0]
+        print(img)
         all_images.append(img)
     all_images = np.array(all_images, dtype=float)
     all_images = all_images.reshape(all_images.shape + (1,))
     predicted = model.predict(all_images)
-    predicted = predicted * 128
+    predicted = predicted * 128 *3
     for i in range(len(predicted)):
+        print(predicted[i])
         img = np.zeros((256,256,3))
         img[:,:,0] = all_images[i][:,:,0]
         img[:,:,1:] = predicted[i]
         imsave("./testset/" + category + "/predicted/" + image_names[i], lab2rgb(img))
 
 model_by_category("beach")
+# model_by_category("person", existing_weights="./model.h5")
 # model_by_category("animal", existing_weights="./model.h5")
 
