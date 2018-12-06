@@ -2,147 +2,136 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential, Model
 from keras.layers import InputLayer, Conv2D, UpSampling2D, Input, RepeatVector, Reshape, concatenate
 from keras.applications.inception_resnet_v2 import InceptionResNetV2, preprocess_input
+from keras.applications.resnet50 import ResNet50, preprocess_input
 from skimage.io import imread, imsave
 from skimage.color import rgb2lab, lab2rgb, gray2rgb, rgb2gray
 from skimage.transform import resize
 import tensorflow as tf
+from keras.callbacks import TensorBoard
 import numpy as np
 import os
 
-# use an encoder - decoder method 
-# reference paper: https://arxiv.org/pdf/1712.03400.pdf
+from keras import backend as K
 
-class InceptionModel:
-    '''
-    Full encoder - decoder + inception model
-    '''
-    def __init__(self, input_shape):
-        '''
-        Uses Keras Functional API to create model
-        '''
-        # create encoder
-        encoder_inpt = Input(shape=(256, 256, 1, ))
-        encoder = Conv2D(64, (3, 3), strides=2, activation='relu', padding='same')(encoder_inpt)
-        encoder = Conv2D(128, (3, 3), strides=1, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(128, (3, 3), strides=2, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(256, (3, 3), strides=1, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(256, (3, 3), strides=2, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(512, (3, 3), strides=1, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(512, (3, 3), strides=1, activation='relu', padding='same')(encoder)
-        encoder = Conv2D(256, (3, 3), strides=1, activation='relu', padding='same')(encoder)
+category = 'animal'
 
-        # create inception embed layer
-        inception_inpt = Input(shape=(1000, ))
+# Get images
+X = []
+for filename in os.listdir("./adjusted/" + category):
+    X.append(imread("./adjusted/" + category + "/" + filename))
+X = np.array(X, dtype=float)
+Xtrain = 1.0/255*X
 
-        # fusion 
-        fusion = RepeatVector((256 * 256)/(8 ** 2))(inception_inpt)
-        fusion = Reshape([32, 32, 1000])(fusion)
-        fusion = concatenate([encoder, fusion])
-        fusion = Conv2D(256, (1, 1), strides=1, activation='relu', padding='same')(fusion)
+print('------ LOADING INCEPTION -----')
+#Load weights
+inception = InceptionResNetV2(weights=None, include_top=True)
+inception.load_weights('local/data/inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5')
+inception.graph = tf.get_default_graph()
 
-        # create decoder
-        decoder = Conv2D(128, (3, 3), strides=1, activation='relu', padding='same')(fusion)
-        decoder = UpSampling2D((2, 2))(decoder)
-        decoder = Conv2D(64, (3, 3), strides=1, activation='relu', padding='same')(decoder)
-        decoder = Conv2D(64, (3, 3), strides=1, activation='relu', padding='same')(decoder)
-        decoder = UpSampling2D((2, 2))(decoder)
-        decoder = Conv2D(32, (3, 3), strides=1, activation='relu', padding='same')(decoder)
-        decoder = Conv2D(2, (3, 3), strides=1, activation='relu', padding='same')(decoder)
-        decoder = UpSampling2D((2, 2))(decoder)
+print('------ CREATING MODEL -----')
 
-        model = Model(inputs=[encoder, inception_inpt], outputs=[decoder])
+embed_input = Input(shape=(1000,))
 
-        self.model = model
+#Encoder
+encoder_input = Input(shape=(256, 256, 1,))
+encoder_output = Conv2D(64, (3,3), activation='relu', padding='same', strides=2)(encoder_input)
+encoder_output = Conv2D(128, (3,3), activation='relu', padding='same')(encoder_output)
+encoder_output = Conv2D(128, (3,3), activation='relu', padding='same', strides=2)(encoder_output)
+encoder_output = Conv2D(256, (3,3), activation='relu', padding='same')(encoder_output)
+encoder_output = Conv2D(256, (3,3), activation='relu', padding='same', strides=2)(encoder_output)
+encoder_output = Conv2D(512, (3,3), activation='relu', padding='same')(encoder_output)
+encoder_output = Conv2D(512, (3,3), activation='relu', padding='same')(encoder_output)
+encoder_output = Conv2D(256, (3,3), activation='relu', padding='same')(encoder_output)
 
-        # inception_inpt = Input(shape=(299, 299, 1))
-        # inception = self.load_inception_res_net()
+#Fusion
+fusion_output = RepeatVector(32 * 32)(embed_input) 
+fusion_output = Reshape(([32, 32, 1000]))(fusion_output)
+fusion_output = concatenate([encoder_output, fusion_output], axis=3) 
+fusion_output = Conv2D(256, (1, 1), activation='relu', padding='same')(fusion_output) 
 
-    def load_inception_res_net(self):
-        '''
-        Load inception resnet with pretrained weights for 
-        high level feature extraction
-        '''
-        inception = InceptionResNetV2(weights=None, include_top=True)
-        inception.load_weights('local/data/inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5')
-        inception.graph = tf.get_default_graph()
-        return inception
+#Decoder
+decoder_output = Conv2D(128, (3,3), activation='relu', padding='same')(fusion_output)
+decoder_output = UpSampling2D((2, 2))(decoder_output)
+decoder_output = Conv2D(64, (3,3), activation='relu', padding='same')(decoder_output)
+decoder_output = UpSampling2D((2, 2))(decoder_output)
+decoder_output = Conv2D(32, (3,3), activation='relu', padding='same')(decoder_output)
+decoder_output = Conv2D(16, (3,3), activation='relu', padding='same')(decoder_output)
+decoder_output = Conv2D(2, (3, 3), activation='tanh', padding='same')(decoder_output)
+decoder_output = UpSampling2D((2, 2))(decoder_output)
 
-    def create_inception_embedding(self, gray):
-        '''
-        Pass image through inception and obtain high level 
-        features before softmax
-        '''
-        inception = self.load_inception_res_net()
+model = Model(inputs=[encoder_input, embed_input], outputs=decoder_output)
 
-        gray_resized = []
-        for i in gray:
-            i = resize(i, (299, 299, 3), mode='constant')
-            gray_resized.append(i)
-        gray_resized = np.array(gray_resized)
-        gray_resized = preprocess_input(gray_resized)
-        with inception.graph.as_default():
-            embed = inception.predict(gray_resized)
-        return embed
+print('------ FINISHED MODEL -----')
 
-    def get_data_generator(self, shear_range=0.4, zoom_range=0.4, horizontal_flip=True, rotation_range=40):
-        '''
-        data generator
-        '''
-        return ImageDataGenerator(
-            shear_range=shear_range,
-            zoom_range=zoom_range,
-            horizontal_flip=horizontal_flip,
-            rotation_range=rotation_range)
-    
-    def generate_next_batch(self, generator, training_data, batch_size):
-        # batch_size = 20
-        for batch in generator.flow(training_data, batch_size=batch_size):
-            gray = gray2rgb(rgb2gray(batch))
-            embed = self.create_inception_embedding(gray)
-            lab_batch = rgb2lab(batch)
-            x_batch = lab_batch[:,:,:,0]
-            x_batch = x_batch.reshape(x_batch.shape+(1,))
-            y_batch = lab_batch[:,:,:,1:] / 128
-            yield ([x_batch, embed, y_batch])
+#Create embedding
+def create_inception_embedding(grayscaled_rgb):
+    grayscaled_rgb_resized = []
+    for i in grayscaled_rgb:
+        i = resize(i, (299, 299, 3), mode='constant')
+        grayscaled_rgb_resized.append(i)
+    grayscaled_rgb_resized = np.array(grayscaled_rgb_resized)
+    grayscaled_rgb_resized = preprocess_input(grayscaled_rgb_resized)
+    with inception.graph.as_default():
+        embed = inception.predict(grayscaled_rgb_resized)
+    return embed
 
-    def train(self, batch_size, epochs, training_data, steps):
-        '''
-        Train Model
-        '''
-        generator = self.get_data_generator()
-        self.model.compile(optimizer='adam', loss='mse')
-        self.model.fit_generator(self.generate_next_batch(generator, training_data, batch_size), epochs=epochs, steps_per_epoch=steps)
+# Image transformer
+datagen = ImageDataGenerator(
+        shear_range=0.4,
+        zoom_range=0.4,
+        rotation_range=40,
+        horizontal_flip=True)
 
-    def predict(self, validation_data, category):
-        '''
-        Make predictions
-        '''
-        test = gray2rgb(rgb2gray(validation_data))
-        test_embed = self.create_inception_embedding(validation_data)
-        test = rgb2lab(test)[:,:,:,0]
-        test = test.reshape(test.shape+(1,))
+#Generate training data
+batch_size = 20
 
-        # test
-        output = self.model.predict([test, test_embed])
-        output = output * 128
+def image_a_b_gen(batch_size):
+    print('---- GENERATING BATCH -----')
+    for batch in datagen.flow(Xtrain, batch_size=batch_size):
+        grayscaled_rgb = gray2rgb(rgb2gray(batch))
+        embed = create_inception_embedding(grayscaled_rgb)
+        lab_batch = rgb2lab(batch)
+        X_batch = lab_batch[:,:,:,0]
+        X_batch = X_batch.reshape(X_batch.shape+(1,))
+        Y_batch = lab_batch[:,:,:,1:] / 128
+        yield ([X_batch, create_inception_embedding(grayscaled_rgb)], Y_batch)
 
-        for i in range(len(output)):
-            cur = np.zeros((256, 256, 3))
-            cur[:,:,0] = test[i][:,:,0]
-            cur[:,:,1:] = output[i]
+#Train model      
+# tensorboard = TensorBoard(log_dir="/output")
 
-            imsave("./testset/" + category + "/predicted/" + image_names[i], lab2rgb(img))
+print('------ TRAINING ---------')
+model.compile(optimizer='adam', loss='mse')
+model.fit_generator(image_a_b_gen(batch_size), epochs=1000, steps_per_epoch=20)
+model.save_weights("./models/model.h8")
+
+# predict_by_category(model, 'person')
+
+model.load_weights('./models/model.h8')
+
+#Make a prediction on the unseen images
+names = []
+color_me = []
+for filename in os.listdir("./testset/" + category + "/expected"):
+    names.append(filename)
+    color_me.append(imread("./testset/" + category + "/expected/" + filename))
+
+color_me = np.array(color_me, dtype=float)
+color_me = 1.0/255*color_me
+color_me = gray2rgb(rgb2gray(color_me))
+color_me_embed = create_inception_embedding(color_me)
+color_me = rgb2lab(color_me)[:,:,:,0]
+color_me = color_me.reshape(color_me.shape+(1,))
+
+print('PREDICTING')
+# Test model
+output = model.predict([color_me, color_me_embed])
+output = output * 128
 
 
-
-def get_image_data(category, split=0.8):
-    data = []
-    all_images = os.listdir("./adjusted/" + category)
-    for name in all_images:
-        data.append(imread("./adjusted/" + category + "/" + name))
-    data = np.array(data, dtype=float)
-    training_data = data[int((1 - split) * len(data)):]
-    training_data = 1.0/255 * training_data
-    validation_data = data[:int((1 - split) * len(data))]
-    validation_data = 1.0/255 * validation_data
-    return (training_data, validation_data)
+print('SAVING')
+# Output colorizations
+for i in range(len(output)):
+    cur = np.zeros((256, 256, 3))
+    cur[:,:,0] = color_me[i][:,:,0]
+    cur[:,:,1:] = output[i]
+    imsave("./testset/" + category + "/predicted/" + names[i], lab2rgb(cur))
