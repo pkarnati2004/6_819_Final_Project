@@ -11,28 +11,18 @@ def download_images(category, sources):
     if not os.path.isdir("./images"):
         os.mkdir("./images")
     if os.path.isdir("./images/" + category):
-        print("./images/" + category + " already exists. Will add to category.")
-        counter = 1
-        for url in sources:
-            path = "./images/" + category + "/" + "0" * (8 - len(str(counter))) + str(counter) + ".jpg"
-            f = open(path, "wb")
-            with urllib.request.urlopen(url) as opened:
-                f.write(opened.read())
-            f.close()
-            print("saved " + path)
-            counter += 1
+        print("./images/" + category + " already exists. Will skip category.")
         return
-    else:
-        os.mkdir("./images/" + category)
-        counter = 1
-        for url in sources:
-            path = "./images/" + category + "/" + "0" * (8 - len(str(counter))) + str(counter) + ".jpg"
-            f = open(path, "wb")
-            with urllib.request.urlopen(url) as opened:
-                f.write(opened.read())
-            f.close()
-            print("saved " + path)
-            counter += 1
+    os.mkdir("./images/" + category)
+    counter = 1
+    for url in sources:
+        path = "./images/" + category + "/" + "0" * (8 - len(str(counter))) + str(counter) + ".jpg"
+        f = open(path, "wb")
+        with urllib.request.urlopen(url) as opened:
+            f.write(opened.read())
+        f.close()
+        print("saved " + path)
+        counter += 1
 
 
 # removes parameters from image urls, sets image download width
@@ -79,4 +69,4 @@ def scrape_images(categories, num_scrolls):
     return category_to_urls
 
 # beach
-scrape_images(["waterfall"], 280)
+scrape_images(["bird", "city", "flower", "mountain", "dog", "fruit"], 280)
