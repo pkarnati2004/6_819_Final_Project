@@ -5,6 +5,7 @@ import numpy as np
 import random
 import os
 
+# hello
 def create_test_set(category, proportion=0.10):
     if not os.path.isdir("./testset"):
         os.mkdir("./testset")
